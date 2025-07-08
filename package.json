@@ -1,22 +1,22 @@
 {
-  "name": "starter-ts",
+  "name": "modern-idoc-svg",
   "type": "module",
   "version": "0.0.0",
   "packageManager": "pnpm@9.15.1",
-  "description": "Starter template for TypeScript library",
+  "description": "IDoc to SVG renderer",
   "author": "wxm",
   "license": "MIT",
-  "homepage": "https://github.com/qq15725/starter-ts",
+  "homepage": "https://github.com/qq15725/modern-idoc-svg",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qq15725/starter-ts.git"
+    "url": "git+https://github.com/qq15725/modern-idoc-svg.git"
   },
   "bugs": {
-    "url": "https://github.com/qq15725/starter-ts/issues"
+    "url": "https://github.com/qq15725/modern-idoc-svg/issues"
   },
   "keywords": [
-    "starter",
-    "template",
+    "idoc",
+    "idoc-to-svg",
     "typescript"
   ],
   "sideEffects": false,
@@ -52,6 +52,10 @@
     "test": "vitest",
     "typecheck": "tsc --noEmit",
     "prepare": "simple-git-hooks"
+  },
+  "dependencies": {
+    "modern-idoc": "^0.8.2",
+    "modern-text": "^1.6.1"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^4.16.2",
