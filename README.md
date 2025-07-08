@@ -69,6 +69,11 @@ document.body.append(
 )
 ```
 
+## Methods
+
+- [idocToSvg](src/methods/idocToSvg.ts)
+- [idocToSvgString](src/methods/idocToSvgString.ts)
+
 ## Related
 
 - [modern-idoc](https://github.com/qq15725/modern-idoc)
