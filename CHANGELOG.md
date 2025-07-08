@@ -1,3 +1,12 @@
+## [0.0.3](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.2...v0.0.3) (2025-07-08)
+
+
+### Bug Fixes
+
+* idocToSvgString ([ad7b954](https://github.com/qq15725/modern-idoc-svg/commit/ad7b954333edb87451763ea48de322b26439c765))
+
+
+
 ## [0.0.2](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.1...v0.0.2) (2025-07-08)
 
 
