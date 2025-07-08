@@ -69,6 +69,6 @@ document.body.append(
 )
 ```
 
-## Related packages
+## Related
 
 - [modern-idoc](https://github.com/qq15725/modern-idoc)
