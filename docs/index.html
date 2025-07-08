@@ -8,9 +8,10 @@
 <script type="module">
   import { idocToSvg } from '../src'
 
-  document.body.append(idocToSvg({
-    children: [
-      {
+  document.body.append(
+    idocToSvg({
+      children: [
+        {
         name: 'ppt/slides/slide1.xml',
         style: { width: 960, height: 540 },
         children: [
@@ -42,8 +43,9 @@
           },
         ],
       },
-    ],
-  }))
+      ],
+    }),
+  )
 </script>
 </body>
 </html>

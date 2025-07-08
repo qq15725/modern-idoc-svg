@@ -18,18 +18,57 @@
   </a>
 </p>
 
-## Try it now!
+## 📦 Install
 
-### GitHub Template
-
-[Create a repo from this template on GitHub](https://github.com/qq15725/modern-idoc-svg/generate).
-
-### Clone to local
-
-If you prefer to do it manually with the cleaner git history
-
-```bash
-npx degit qq15725/modern-idoc-svg my-ts-lib
-cd my-ts-lib
-pnpm i # If you don't have pnpm installed, run: npm install -g pnpm
 ```
+npm i modern-idoc-svg
+```
+
+## 🦄 Usage
+
+```ts
+import { idocToSvg } from 'modern-idoc-svg'
+
+document.body.append(
+  idocToSvg({
+    children: [
+      {
+        name: 'ppt/slides/slide1.xml',
+        style: { width: 960, height: 540 },
+        children: [
+          {
+            style: { left: 50, top: 50, rotate: 60, width: 50, height: 50 },
+            background: 'linear-gradient(#e66465, #9198e5)',
+          },
+          {
+            style: { left: 150, top: 50, rotate: 60, width: 50, height: 50 },
+            background: '/example.jpg',
+          },
+          {
+            style: { rotate: 40, left: 100, top: 100, fontSize: 20, color: 'rgba(255, 0, 0, 0.2)' },
+            text: 'test',
+          },
+          {
+            style: { left: 200, top: 100, width: 100, height: 200, fontSize: 22 },
+            text: [
+              {
+                letterSpacing: 3,
+                fragments: [
+                  { content: 'He', color: '#00FF00', fontSize: 12 },
+                  { content: 'llo', color: '#000000' },
+                ],
+              },
+              { content: ', ', color: '#FF0000' },
+              { content: 'World!', color: '#0000FF' },
+            ],
+          },
+        ],
+      },
+    ],
+  }),
+)
+```
+
+## Related packages
+
+- [modern-idoc](https://github.com/qq15725/modern-idoc)
