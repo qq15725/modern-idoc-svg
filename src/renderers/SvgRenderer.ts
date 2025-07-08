@@ -109,7 +109,7 @@ export class SvgRenderer {
     },
   ): string {
     // TODO tile
-    const { rotateWithShape, image, cropRect, stretchRect, opacity = 1 } = fill
+    const { rotateWithShape = true, image, cropRect, stretchRect, opacity = 1 } = fill
     const { prefix, defs, rotate } = ctx
     const id = `${prefix}-image-${idGenerator()}`
 
@@ -770,11 +770,10 @@ export class SvgRenderer {
   }
 
   parse(idoc: NormalizedDocument): XmlNode {
-    const style = idoc.style ?? {}
-    const width = Number(style.width ?? 0)
-    const height = Number(style.height ?? 0)
-    const pages = idoc.children ?? []
-    const viewBoxHeight = height * pages.length
+    const { style = {}, children = [] } = idoc
+    const width = Number(style.width ?? children[0]?.style?.width ?? 0)
+    const height = Number(style.height ?? children[0]?.style?.height ?? 0)
+    const viewBoxHeight = height * children.length
 
     return {
       tag: 'svg',
@@ -785,7 +784,7 @@ export class SvgRenderer {
         'height': viewBoxHeight,
         'viewBox': `0 0 ${width} ${viewBoxHeight}`,
       },
-      children: pages.flatMap((element, elementIndex) => {
+      children: children.flatMap((element, elementIndex) => {
         return [
           this.parsePage(element as any, elementIndex, width, height),
         ].filter(Boolean) as XmlNode[]

@@ -54,7 +54,7 @@
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
-    "modern-idoc": "^0.8.2",
+    "modern-idoc": "^0.8.3",
     "modern-text": "^1.6.1"
   },
   "devDependencies": {
