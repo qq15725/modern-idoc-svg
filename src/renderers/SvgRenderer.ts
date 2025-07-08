@@ -350,7 +350,7 @@ export class SvgRenderer {
     return marker
   }
 
-  parseElement(element: NormalizedElement, ctx: ParseElementContext = {}): XmlNode {
+  elementToXmlNode(element: NormalizedElement, ctx: ParseElementContext = {}): XmlNode {
     const uuid = idGenerator()
 
     const {
@@ -716,7 +716,7 @@ export class SvgRenderer {
     if (children) {
       shapeContainer.children!.push(
         ...children.map((child) => {
-          return this.parseElement(child as any, {
+          return this.elementToXmlNode(child as any, {
             ...ctx,
             parent: element as any,
           })
@@ -727,7 +727,7 @@ export class SvgRenderer {
     return container
   }
 
-  parsePage(element: NormalizedElement, elementIndex: number, width: number, height: number): XmlNode {
+  pageToXmlNode(element: NormalizedElement, elementIndex: number, width: number, height: number): XmlNode {
     const {
       children = [],
       background,
@@ -764,12 +764,12 @@ export class SvgRenderer {
             ]
           : []),
         ...children
-          .map(child => this.parseElement(child as any)),
+          .map(child => this.elementToXmlNode(child as any)),
       ],
     }
   }
 
-  parse(idoc: NormalizedDocument): XmlNode {
+  docToXmlNode(idoc: NormalizedDocument): XmlNode {
     const { style = {}, children = [] } = idoc
     const width = Number(style.width ?? children[0]?.style?.width ?? 0)
     const height = Number(style.height ?? children[0]?.style?.height ?? 0)
@@ -786,13 +786,13 @@ export class SvgRenderer {
       },
       children: children.flatMap((element, elementIndex) => {
         return [
-          this.parsePage(element as any, elementIndex, width, height),
+          this.pageToXmlNode(element as any, elementIndex, width, height),
         ].filter(Boolean) as XmlNode[]
       }),
     }
   }
 
-  getElementViewBox(element: NormalizedElement): ViewBox {
+  parseElementViewBox(element: NormalizedElement): ViewBox {
     const width = Number(element.style?.width ?? 0)
     const height = Number(element.style?.height ?? 0)
 
@@ -844,8 +844,8 @@ export class SvgRenderer {
     return viewBox
   }
 
-  convertElement(element: NormalizedElement, ctx: ParseElementContext = {}): string {
-    const viewBox = this.getElementViewBox(element)
+  elementToSvgString(element: NormalizedElement, ctx: ParseElementContext = {}): string {
+    const viewBox = this.parseElementViewBox(element)
 
     ctx.onViewBox?.(viewBox)
 
@@ -860,7 +860,7 @@ export class SvgRenderer {
         'preserveAspectRatio': 'none',
       },
       children: [
-        this.parseElement({
+        this.elementToXmlNode({
           ...element,
           style: {
             ...element.style,
@@ -872,19 +872,23 @@ export class SvgRenderer {
     })
   }
 
-  renderString(idoc: Document): string {
+  toSvgString(idoc: Document): string {
     return this.xmlRenderer.render(
-      this.parse(normalizeDocument(idoc)),
+      this.docToXmlNode(normalizeDocument(idoc)),
     )
   }
 
-  render(idoc: Document): SVGSVGElement {
-    const xml = this.renderString(idoc)
+  toSvg(idoc: Document): SVGSVGElement {
+    const xml = this.toSvgString(idoc)
     const doc = new DOMParser().parseFromString(xml, 'application/xml') as XMLDocument
     const error = doc.querySelector('parsererror')
     if (error) {
       throw new Error(`${error.textContent ?? 'parser error'}\n${xml}`)
     }
     return doc.documentElement as any
+  }
+
+  render(idoc: Document): SVGSVGElement {
+    return this.toSvg(idoc)
   }
 }
