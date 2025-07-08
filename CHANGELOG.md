@@ -1,3 +1,12 @@
+## [0.0.4](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.3...v0.0.4) (2025-07-08)
+
+
+### Features
+
+* up dep ([14efaa0](https://github.com/qq15725/modern-idoc-svg/commit/14efaa06ebd3f8e42a17b1f7c23a47df64a9dfed))
+
+
+
 ## [0.0.3](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.2...v0.0.3) (2025-07-08)
 
 
