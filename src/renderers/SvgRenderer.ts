@@ -211,7 +211,7 @@ export class SvgRenderer {
       fillMap: Map<string, string>
       rotate?: number
     },
-  ): string | undefined {
+  ): string {
     const { width, height, defs, prefix, fillMap, rotate } = ctx
     if (fill.linearGradient || fill.radialGradient) {
       return this.parseGradientFill(fill as any, { defs, prefix, fillMap })
@@ -222,7 +222,7 @@ export class SvgRenderer {
     else if (fill.color) {
       return fill.color
     }
-    return undefined
+    return 'none'
   }
 
   parseFill(
