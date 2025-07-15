@@ -1,3 +1,12 @@
+## [0.0.5](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.4...v0.0.5) (2025-07-15)
+
+
+### Bug Fixes
+
+* parseFill ([72c813d](https://github.com/qq15725/modern-idoc-svg/commit/72c813dadaf64b97a28a415c26b9a98c683c729a))
+
+
+
 ## [0.0.4](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.3...v0.0.4) (2025-07-08)
 
 
