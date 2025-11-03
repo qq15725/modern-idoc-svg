@@ -32,6 +32,14 @@ export interface ParseElementContext {
 export class SvgRenderer {
   xmlRenderer = new XmlRenderer()
 
+  doc: NormalizedDocument
+
+  constructor(
+    doc: Document,
+  ) {
+    this.doc = normalizeDocument(doc)
+  }
+
   parseGradientFill(
     fill: NormalizedGradientFill,
     ctx: {
@@ -179,11 +187,11 @@ export class SvgRenderer {
           children: [
             {
               tag: 'g',
-              attrs: { 'data-title': 'cropRect', ...cropRectAttrs },
+              attrs: { 'data-name': 'cropRect', ...cropRectAttrs },
               children: [
                 {
                   tag: 'g',
-                  attrs: { 'data-title': 'stretchRect', ...stretchRectAttrs },
+                  attrs: { 'data-name': 'stretchRect', ...stretchRectAttrs },
                   children: [
                     {
                       tag: 'image',
@@ -246,7 +254,7 @@ export class SvgRenderer {
     if (shapePaths) {
       return {
         tag: 'g',
-        attrs: { 'data-title': key },
+        attrs: { 'data-name': key },
         children: shapePaths.map((path) => {
           return {
             tag: 'use',
@@ -263,7 +271,7 @@ export class SvgRenderer {
 
     return {
       tag: 'g',
-      attrs: { 'data-title': key },
+      attrs: { 'data-name': key },
       children: [
         {
           tag: 'rect',
@@ -279,7 +287,7 @@ export class SvgRenderer {
     const marker = {
       tag: 'marker',
       attrs: {
-        'data-title': lineEnd.type,
+        'data-name': lineEnd.type,
         'viewBox': '0 0 10 10',
         'refX': 5,
         'refY': 5,
@@ -350,7 +358,10 @@ export class SvgRenderer {
     return marker
   }
 
-  elementToXmlNode(element: NormalizedElement, ctx: ParseElementContext = {}): XmlNode {
+  elementToXmlNode(
+    element: NormalizedElement,
+    ctx: ParseElementContext = {},
+  ): XmlNode {
     const uuid = idGenerator()
 
     const {
@@ -392,7 +403,7 @@ export class SvgRenderer {
 
     const container = {
       tag: 'g',
-      attrs: { 'data-title': name, 'transform': transform.join(' '), visibility },
+      attrs: { 'data-name': name, 'transform': transform.join(' '), visibility },
       children: [] as XmlNode[],
     }
 
@@ -412,7 +423,7 @@ export class SvgRenderer {
     const shapeContainer = {
       tag: 'g',
       attrs: {
-        'data-title': 'shape',
+        'data-name': 'shape',
         'style': { 'transform-box': 'fill-box' },
         'transform-origin': 'center',
         'transform': shapeTransform.join(' '),
@@ -428,7 +439,7 @@ export class SvgRenderer {
           return {
             tag: 'path',
             attrs: {
-              'data-title': shape.preset,
+              'data-name': shape.preset,
               'id': `${uuid}-shape-${idx}`,
               'd': path.data,
               'fill': path.fill,
@@ -581,7 +592,7 @@ export class SvgRenderer {
       shapeContainer.children.push({
         tag: 'g',
         attrs: {
-          'data-title': 'outerShadow',
+          'data-name': 'outerShadow',
           'filter': `url(#${uuid}-outerShadow)`,
           'transform': `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e},${matrix.f})`,
         },
@@ -646,6 +657,7 @@ export class SvgRenderer {
           scaleX: 1,
           scaleY: 1,
         },
+        fonts: this.doc.fonts,
       } as any)
 
       const textNodes = measured.paragraphs.flatMap((paragraph) => {
@@ -656,21 +668,34 @@ export class SvgRenderer {
         return paragraph.fragments
           .map((f) => {
             const { computedStyle: rStyle } = f
+
+            const fill = isNone((rStyle as any).fill)
+              ? isNone(rStyle.color)
+                ? undefined
+                : rStyle.color
+              : this._parseFill((rStyle as any).fill, {
+                  defs,
+                  prefix: `${uuid}-text`,
+                  fillMap,
+                  width,
+                  height,
+                  rotate,
+                })
+
+            if (f.characters[0].glyphBox) {
+              return {
+                tag: 'path',
+                attrs: {
+                  d: f.characters.map(c => c.path.toData()).join(' '),
+                  fill,
+                },
+              }
+            }
+
             return {
               tag: 'text',
               attrs: {
-                'fill': isNone(rStyle.fill)
-                  ? isNone(rStyle.color)
-                    ? undefined
-                    : rStyle.color
-                  : this._parseFill(rStyle.fill, {
-                      defs,
-                      prefix: `${uuid}-text`,
-                      fillMap,
-                      width,
-                      height,
-                      rotate,
-                    }),
+                fill,
                 'font-size': rStyle.fontSize,
                 'font-family': rStyle.fontFamily,
                 'letter-spacing': rStyle.letterSpacing,
@@ -703,7 +728,7 @@ export class SvgRenderer {
         container.children!.push({
           tag: 'g',
           attrs: {
-            'data-title': 'text',
+            'data-name': 'text',
             'style': { 'transform-box': 'fill-box' },
             'transform-origin': 'center',
             'transform': rotate !== 0 ? `rotate(${rotate})` : undefined,
@@ -727,50 +752,8 @@ export class SvgRenderer {
     return container
   }
 
-  pageToXmlNode(element: NormalizedElement, elementIndex: number, width: number, height: number): XmlNode {
-    const {
-      children = [],
-      background,
-    } = element
-
-    const uuid = idGenerator()
-
-    const defs = {
-      tag: 'defs',
-      children: [] as XmlNode[],
-    }
-
-    const fillMap = new Map<string, string>()
-
-    return {
-      tag: 'g',
-      attrs: {
-        'data-title': element.name,
-        'data-path': element.meta?.id,
-        'transform': `translate(0, ${height * elementIndex})`,
-      },
-      children: [
-        defs,
-        ...(background
-          ? [
-              this.parseFill(background, {
-                key: 'background',
-                width,
-                height,
-                defs,
-                uuid,
-                fillMap,
-              }),
-            ]
-          : []),
-        ...children
-          .map(child => this.elementToXmlNode(child as any)),
-      ],
-    }
-  }
-
-  docToXmlNode(idoc: NormalizedDocument): XmlNode {
-    const { style = {}, children = [] } = idoc
+  docToXmlNode(doc: NormalizedDocument): XmlNode {
+    const { style = {}, children = [] } = doc
     const width = Number(style.width ?? children[0]?.style?.width ?? 0)
     const height = Number(style.height ?? children[0]?.style?.height ?? 0)
     const viewBoxHeight = height * children.length
@@ -784,9 +767,9 @@ export class SvgRenderer {
         'height': viewBoxHeight,
         'viewBox': `0 0 ${width} ${viewBoxHeight}`,
       },
-      children: children.flatMap((element, elementIndex) => {
+      children: children.flatMap((element) => {
         return [
-          this.pageToXmlNode(element as any, elementIndex, width, height),
+          this.elementToXmlNode(element),
         ].filter(Boolean) as XmlNode[]
       }),
     }
@@ -844,7 +827,10 @@ export class SvgRenderer {
     return viewBox
   }
 
-  elementToSvgString(element: NormalizedElement, ctx: ParseElementContext = {}): string {
+  elementToString(
+    element: NormalizedElement,
+    ctx: ParseElementContext = {},
+  ): string {
     const viewBox = this.parseElementViewBox(element)
 
     ctx.onViewBox?.(viewBox)
@@ -872,14 +858,14 @@ export class SvgRenderer {
     })
   }
 
-  toSvgString(idoc: Document): string {
+  toString(): string {
     return this.xmlRenderer.render(
-      this.docToXmlNode(normalizeDocument(idoc)),
+      this.docToXmlNode(this.doc),
     )
   }
 
-  toSvg(idoc: Document): SVGSVGElement {
-    const xml = this.toSvgString(idoc)
+  toDom(): SVGSVGElement {
+    const xml = this.toString()
     const doc = new DOMParser().parseFromString(xml, 'application/xml') as XMLDocument
     const error = doc.querySelector('parsererror')
     if (error) {
@@ -888,7 +874,7 @@ export class SvgRenderer {
     return doc.documentElement as any
   }
 
-  render(idoc: Document): SVGSVGElement {
-    return this.toSvg(idoc)
+  toBlob(): Blob {
+    return new Blob([this.toString()], { type: 'image/svg+xml' })
   }
 }

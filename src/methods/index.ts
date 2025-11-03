@@ -1,2 +1,3 @@
-export * from './idocToSvg'
-export * from './idocToSvgString'
+export * from './docToSvg'
+export * from './docToSvgBlob'
+export * from './docToSvgString'

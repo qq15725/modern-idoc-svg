@@ -27,10 +27,10 @@ npm i modern-idoc-svg
 ## 🦄 Usage
 
 ```ts
-import { idocToSvg } from 'modern-idoc-svg'
+import { docToSvg } from 'modern-idoc-svg'
 
 document.body.append(
-  idocToSvg({
+  docToSvg({
     children: [
       {
         name: 'ppt/slides/slide1.xml',
@@ -71,8 +71,9 @@ document.body.append(
 
 ## Methods
 
-- [idocToSvg](src/methods/idocToSvg.ts)
-- [idocToSvgString](src/methods/idocToSvgString.ts)
+- [docToSvg](src/methods/docToSvg.ts)
+- [docToSvgString](src/methods/docToSvgString.ts)
+- [docToSvgBlob](src/methods/docToSvgBlob.ts)
 
 ## Related
 

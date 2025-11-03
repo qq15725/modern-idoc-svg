@@ -1,0 +1,47 @@
+import { fonts } from 'modern-font'
+import { docToSvg } from '../../src'
+
+async function main(): Promise<void> {
+  await fonts.loadFallbackFont({ family: 'Fallback', src: '/fallback.woff' })
+
+  document.body.append(
+    docToSvg({
+      children: [
+        {
+          name: 'ppt/slides/slide1.xml',
+          style: { width: 960, height: 540 },
+          children: [
+            {
+              style: { left: 50, top: 50, rotate: 60, width: 50, height: 50 },
+              background: 'linear-gradient(#e66465, #9198e5)',
+            },
+            {
+              style: { left: 150, top: 50, rotate: 60, width: 50, height: 50 },
+              background: '/example.jpg',
+            },
+            {
+              style: { rotate: 40, left: 100, top: 100, fontSize: 20, color: 'rgba(255, 0, 0, 0.2)' },
+              text: 'test',
+            },
+            {
+              style: { left: 200, top: 100, width: 100, height: 200, fontSize: 22 },
+              text: [
+                {
+                  letterSpacing: 3,
+                  fragments: [
+                    { content: 'He', color: '#00FF00', fontSize: 12 },
+                    { content: 'llo', color: '#000000' },
+                  ],
+                },
+                { content: ', ', color: '#FF0000' },
+                { content: 'World!', color: '#0000FF' },
+              ],
+            },
+          ],
+        },
+      ],
+    }),
+  )
+}
+
+main()
