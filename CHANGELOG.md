@@ -1,3 +1,12 @@
+# [0.1.0](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.6...v0.1.0) (2025-11-03)
+
+
+### Features
+
+* text use path d render / idoc rename to doc ([aad5b31](https://github.com/qq15725/modern-idoc-svg/commit/aad5b31c11eddd447178c36867e436018220576f))
+
+
+
 ## [0.0.6](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.5...v0.0.6) (2025-07-15)
 
 
