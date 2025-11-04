@@ -5,7 +5,7 @@ async function main(): Promise<void> {
   await fonts.loadFallbackFont({ family: 'Fallback', src: '/fallback.woff' })
 
   document.body.append(
-    docToSvg({
+    await docToSvg({
       children: [
         {
           name: 'ppt/slides/slide1.xml',

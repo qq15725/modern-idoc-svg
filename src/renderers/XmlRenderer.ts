@@ -25,25 +25,31 @@ export class XmlRenderer {
     if (!attrs) {
       return ''
     }
-    return ` ${Object.keys(attrs).map((key) => {
-      let value = attrs[key]
-      if (value === '' || value === null || value === undefined) {
-        return undefined
-      }
-      else if (key === 'style') {
-        value = Object.keys(value)
-          .map((k) => {
-            const v = value[k]
-            if (v === '' || v === null || v === undefined) {
-              return undefined
-            }
-            return `${k}: ${v};`
-          })
-          .filter(Boolean)
-          .join(' ')
-      }
-      return `${key}="${value}"`
-    }).filter(Boolean).join(' ')}`
+    const values = Object.keys(attrs)
+      .map((key) => {
+        let value = attrs[key]
+        if (value === '' || value === null || value === undefined) {
+          return undefined
+        }
+        else if (key === 'style') {
+          value = Object.keys(value)
+            .map((k) => {
+              const v = value[k]
+              if (v === '' || v === null || v === undefined) {
+                return undefined
+              }
+              return `${k}: ${v};`
+            })
+            .filter(Boolean)
+            .join(' ')
+        }
+        return `${key}="${value}"`
+      })
+      .filter(Boolean)
+    if (!values.length) {
+      return ''
+    }
+    return ` ${values.join(' ')}`
   }
 
   renderChildren(children?: XmlNodeChild[]): string {
@@ -62,6 +68,9 @@ export class XmlRenderer {
   }
 
   render(node: XmlNode): string {
-    return `<${node.tag}${this.renderAttrs(node.attrs)}>${this.renderChildren(node.children)}</${node.tag}>`
+    if (node.children?.length) {
+      return `<${node.tag}${this.renderAttrs(node.attrs)}>${this.renderChildren(node.children)}</${node.tag}>`
+    }
+    return `<${node.tag}${this.renderAttrs(node.attrs)} />`
   }
 }

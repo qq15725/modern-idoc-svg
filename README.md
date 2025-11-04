@@ -30,7 +30,7 @@ npm i modern-idoc-svg
 import { docToSvg } from 'modern-idoc-svg'
 
 document.body.append(
-  docToSvg({
+  await docToSvg({
     children: [
       {
         name: 'ppt/slides/slide1.xml',

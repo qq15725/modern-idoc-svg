@@ -27,17 +27,37 @@ export interface ViewBox {
 export interface ParseElementContext {
   parent?: NormalizedElement
   onViewBox?: (viewBox: ViewBox) => void
+  defs?: {
+    tag: 'defs'
+    children: XmlNode[]
+  }
+}
+
+export interface SvgRendererOptions {
+  embedImage?: boolean
+  embedText?: boolean
 }
 
 export class SvgRenderer {
+  static defaultOptions = {
+    embedImage: true,
+    embedText: true,
+  }
+
   xmlRenderer = new XmlRenderer()
 
   doc: NormalizedDocument
+  config: Required<SvgRendererOptions>
 
   constructor(
     doc: Document,
+    options: SvgRendererOptions = {},
   ) {
     this.doc = normalizeDocument(doc)
+    this.config = {
+      ...SvgRenderer.defaultOptions,
+      ...options,
+    }
   }
 
   parseGradientFill(
@@ -50,7 +70,7 @@ export class SvgRenderer {
   ): string {
     const val = JSON.stringify(fill)
     const { defs, prefix, fillMap } = ctx
-    const id = `${prefix}-gradient-${idGenerator()}`
+    const id = `${prefix}_grad_${idGenerator()}`
 
     if (val && fillMap.has(val)) {
       return `url(#${fillMap.get(val)!})`
@@ -106,7 +126,7 @@ export class SvgRenderer {
     }
   }
 
-  parseImageFill(
+  async parseImageFill(
     fill: NormalizedImageFill,
     ctx: {
       defs: XmlNode
@@ -115,11 +135,11 @@ export class SvgRenderer {
       prefix: string
       rotate?: number
     },
-  ): string {
+  ): Promise<string> {
     // TODO tile
     const { rotateWithShape = true, image, cropRect, stretchRect, opacity = 1 } = fill
     const { prefix, defs, rotate } = ctx
-    const id = `${prefix}-image-${idGenerator()}`
+    const id = `${prefix}_img_${idGenerator()}`
 
     let { width, height } = ctx
     const rawWidth = width
@@ -133,10 +153,7 @@ export class SvgRenderer {
       height = (sin * rawWidth) + (cos * rawHeight)
     }
 
-    const cropRectAttrs: Record<string, any> = {
-      'style': { 'transform-box': 'fill-box' },
-      'transform-origin': 'center',
-    }
+    const cropRectAttrs: Record<string, any> = {}
 
     if (cropRect) {
       const { left = 0, top = 0, bottom = 0, right = 0 } = cropRect
@@ -152,8 +169,7 @@ export class SvgRenderer {
     }
 
     const stretchRectAttrs: Record<string, any> = {
-      'style': { 'transform-box': 'fill-box' },
-      'transform-origin': 'left top',
+      style: { 'transform-origin': 'left top' },
     }
 
     if (stretchRect) {
@@ -170,32 +186,50 @@ export class SvgRenderer {
       ].join(' ')
     }
 
+    let href
+    if (this.config.embedImage) {
+      href = await fetch(image)
+        .then(async (rep) => {
+          const blob = await rep.blob()
+          const mime = blob.type || 'image/png'
+          const arrayBuffer = await blob.arrayBuffer()
+          const uint8 = new Uint8Array(arrayBuffer)
+          let binary = ''
+          for (let i = 0; i < uint8.length; i++) {
+            binary += String.fromCharCode(uint8[i])
+          }
+          const base64 = btoa(binary)
+          return `data:${mime};base64,${base64}`
+        })
+    }
+    else {
+      href = image
+    }
+
     defs.children?.push({
       tag: 'pattern',
       // TODO 100% 会出现细线
-      attrs: { id, left: 0, top: 0, width: '200%', height: '200%' },
+      attrs: { id, width: '200%', height: '200%' },
       children: [
         {
           tag: 'g',
           attrs: {
-            'style': { 'transform-box': 'fill-box' },
-            'transform-origin': 'center',
-            'transform': !rotateWithShape && rotate !== undefined
-              ? `rotate(${-rotate})`
+            transform: !rotateWithShape && rotate !== undefined
+              ? `rotate(${-rotate} ${width / 2} ${height / 2}deg)`
               : undefined,
           },
           children: [
             {
               tag: 'g',
-              attrs: { 'data-name': 'cropRect', ...cropRectAttrs },
+              attrs: { ...cropRectAttrs },
               children: [
                 {
                   tag: 'g',
-                  attrs: { 'data-name': 'stretchRect', ...stretchRectAttrs },
+                  attrs: { ...stretchRectAttrs },
                   children: [
                     {
                       tag: 'image',
-                      attrs: { href: image, width, height, opacity, preserveAspectRatio: 'none' },
+                      attrs: { href, width, height, opacity, preserveAspectRatio: 'none' },
                     },
                   ],
                 },
@@ -209,7 +243,7 @@ export class SvgRenderer {
     return `url(#${id})`
   }
 
-  _parseFill(
+  async _parseFill(
     fill: NormalizedFill,
     ctx: {
       prefix: string
@@ -219,13 +253,13 @@ export class SvgRenderer {
       fillMap: Map<string, string>
       rotate?: number
     },
-  ): string {
+  ): Promise<string> {
     const { width, height, defs, prefix, fillMap, rotate } = ctx
     if (fill.linearGradient || fill.radialGradient) {
       return this.parseGradientFill(fill as any, { defs, prefix, fillMap })
     }
     else if (fill.image) {
-      return this.parseImageFill(fill as any, { defs, prefix, width, height, rotate })
+      return await this.parseImageFill(fill as any, { defs, prefix, width, height, rotate })
     }
     else if (fill.color) {
       return fill.color
@@ -233,7 +267,7 @@ export class SvgRenderer {
     return 'none'
   }
 
-  parseFill(
+  async parseFill(
     fill: NormalizedFill,
     ctx: {
       key: string
@@ -246,39 +280,31 @@ export class SvgRenderer {
       shapePaths?: XmlNode[]
       rotate?: number
     },
-  ): XmlNode {
+  ): Promise<XmlNode[]> {
     const { key, attrs = {}, width, height, defs, uuid, fillMap, shapePaths, rotate } = ctx
 
-    attrs.fill = this._parseFill(fill, { defs, prefix: `${uuid}-${key}`, fillMap, width, height, rotate })
+    attrs.fill = await this._parseFill(fill, { defs, prefix: `${uuid}_${key}`, fillMap, width, height, rotate })
 
     if (shapePaths) {
-      return {
-        tag: 'g',
-        attrs: { 'data-name': key },
-        children: shapePaths.map((path) => {
-          return {
-            tag: 'use',
-            attrs: {
-              'xlink:href': `#${path.attrs!.id}`,
-              'stroke': 'none',
-              'fill': 'none',
-              ...attrs,
-            },
-          }
-        }),
-      }
+      return shapePaths.map((path) => {
+        return {
+          tag: 'use',
+          attrs: {
+            'xlink:href': `#${path.attrs!.id}`,
+            'stroke': 'none',
+            'fill': 'none',
+            ...attrs,
+          },
+        }
+      })
     }
 
-    return {
-      tag: 'g',
-      attrs: { 'data-name': key },
-      children: [
-        {
-          tag: 'rect',
-          attrs: { width, height, stroke: 'none', fill: 'none', ...attrs },
-        },
-      ],
-    }
+    return [
+      {
+        tag: 'rect',
+        attrs: { width, height, stroke: 'none', fill: 'none', ...attrs },
+      },
+    ]
   }
 
   parseMarker(lineEnd: any, stroke: any, strokeWidth: number): XmlNode {
@@ -287,13 +313,12 @@ export class SvgRenderer {
     const marker = {
       tag: 'marker',
       attrs: {
-        'data-name': lineEnd.type,
-        'viewBox': '0 0 10 10',
-        'refX': 5,
-        'refY': 5,
-        'markerWidth': le1px ? 5 : 3,
-        'markerHeight': le1px ? 5 : 3,
-        'orient': 'auto-start-reverse',
+        viewBox: '0 0 10 10',
+        refX: 5,
+        refY: 5,
+        markerWidth: le1px ? 5 : 3,
+        markerHeight: le1px ? 5 : 3,
+        orient: 'auto-start-reverse',
       },
       children: [] as XmlNode[],
     }
@@ -358,14 +383,13 @@ export class SvgRenderer {
     return marker
   }
 
-  elementToXmlNode(
+  async elementToXmlNodes(
     element: NormalizedElement,
     ctx: ParseElementContext = {},
-  ): XmlNode {
+  ): Promise<XmlNode[]> {
     const uuid = idGenerator()
 
     const {
-      name = '',
       style = {},
       background,
       foreground,
@@ -396,39 +420,10 @@ export class SvgRenderer {
       // backgroundColor,
     } = style as Record<string, any>
 
-    const transform: string[] = []
-    if (left !== 0 || top !== 0) {
-      transform.push(`translate(${left}, ${top})`)
-    }
-
-    const container = {
-      tag: 'g',
-      attrs: { 'data-name': name, 'transform': transform.join(' '), visibility },
-      children: [] as XmlNode[],
-    }
-
-    const shapeTransform: string[] = []
-    if (scaleX !== 1 || scaleY !== 1 || rotate !== 0) {
-      if (rotate !== 0) {
-        shapeTransform.push(`rotate(${rotate})`)
-      }
-      shapeTransform.push(`scale(${scaleX}, ${scaleY})`)
-    }
-
-    const defs = {
+    const containerChildren = [] as XmlNode[]
+    const shapeChildren = [] as XmlNode[]
+    const defs = ctx.defs ?? {
       tag: 'defs',
-      children: [] as XmlNode[],
-    }
-
-    const shapeContainer = {
-      tag: 'g',
-      attrs: {
-        'data-name': 'shape',
-        'style': { 'transform-box': 'fill-box' },
-        'transform-origin': 'center',
-        'transform': shapeTransform.join(' '),
-        visibility,
-      },
       children: [] as XmlNode[],
     }
 
@@ -439,8 +434,7 @@ export class SvgRenderer {
           return {
             tag: 'path',
             attrs: {
-              'data-name': shape.preset,
-              'id': `${uuid}-shape-${idx}`,
+              'id': `${uuid}_shape_${idx}`,
               'd': path.data,
               'fill': path.fill,
               'fill-rule': path.fillRule,
@@ -452,7 +446,7 @@ export class SvgRenderer {
       : [
           {
             tag: 'rect',
-            attrs: { id: `${uuid}-shape-${0}`, width, height },
+            attrs: { id: `${uuid}_shape_${0}`, width, height },
           },
         ]
     defs.children.push(...shapePaths)
@@ -486,14 +480,14 @@ export class SvgRenderer {
 
       if (headEnd) {
         const marker = this.parseMarker(headEnd, shapeAttrs.stroke, shapeAttrs['stroke-width'])
-        marker.attrs!.id = `${uuid}-headEnd`
+        marker.attrs!.id = `${uuid}_headEnd`
         defs.children.push(marker)
         shapeAttrs['marker-start'] = `url(#${marker.attrs!.id!})`
       }
 
       if (tailEnd) {
         const marker = this.parseMarker(tailEnd, shapeAttrs.stroke, shapeAttrs['stroke-width'])
-        marker.attrs!.id = `${uuid}-tailEnd`
+        marker.attrs!.id = `${uuid}_tailEnd`
         defs.children.push(marker)
         shapeAttrs['marker-end'] = `url(#${marker.attrs!.id!})`
       }
@@ -502,7 +496,7 @@ export class SvgRenderer {
     if (softEdge) {
       defs.children.push({
         tag: 'filter',
-        attrs: { id: `${uuid}-soft-edge` },
+        attrs: { id: `${uuid}_soft_edge` },
         children: [
           {
             tag: 'feGaussianBlur',
@@ -510,20 +504,22 @@ export class SvgRenderer {
           },
         ],
       })
-      shapeAttrs.filter = `url(#${uuid}-soft-edge)`
+      shapeAttrs.filter = `url(#${uuid}_soft_edge)`
       shapeAttrs.transform = `matrix(0.8,0,0,0.8,${width * 0.1},${height * 0.1})`
     }
 
     if (background) {
-      shapeContainer.children.push(this.parseFill(background, {
-        key: 'background',
-        width,
-        height,
-        defs,
-        uuid,
-        fillMap,
-        rotate,
-      }))
+      shapeChildren.push(...(
+        await this.parseFill(background, {
+          key: 'bg',
+          width,
+          height,
+          defs,
+          uuid,
+          fillMap,
+          rotate,
+        })
+      ))
     }
 
     const shapeNodes = shapePaths.map((path) => {
@@ -564,7 +560,7 @@ export class SvgRenderer {
       defs.children.push({
         tag: 'filter',
         attrs: {
-          id: `${uuid}-outerShadow`,
+          id: `${uuid}_outerShadow`,
           filterUnits: 'userSpaceOnUse',
           x: filter.x1,
           y: filter.y1,
@@ -589,38 +585,35 @@ export class SvgRenderer {
         ],
       })
 
-      shapeContainer.children.push({
+      shapeChildren.push({
         tag: 'g',
         attrs: {
-          'data-name': 'outerShadow',
-          'filter': `url(#${uuid}-outerShadow)`,
-          'transform': `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e},${matrix.f})`,
+          filter: `url(#${uuid}_outerShadow)`,
+          transform: `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e},${matrix.f})`,
         },
         children: shapeNodes,
       })
     }
 
-    shapeContainer.children.push(...shapeNodes)
+    shapeChildren.push(...shapeNodes)
 
     if (foreground) {
-      shapeContainer.children.push(this.parseFill(foreground, {
-        key: 'foreground',
-        width,
-        height,
-        defs,
-        uuid,
-        fillMap,
-        shapePaths,
-        rotate,
-      }))
+      shapeChildren.push(...(
+        await this.parseFill(foreground, {
+          key: 'foreground',
+          width,
+          height,
+          defs,
+          uuid,
+          fillMap,
+          shapePaths,
+          rotate,
+        })
+      ))
     }
 
-    if (defs.children.length) {
-      container.children.push(defs)
-    }
-
-    if (shapeContainer.children.length) {
-      container.children.push(shapeContainer)
+    if (!ctx.defs && defs.children.length) {
+      containerChildren.push(defs)
     }
 
     if (text) {
@@ -660,29 +653,29 @@ export class SvgRenderer {
         fonts: this.doc.fonts,
       } as any)
 
-      const textNodes = measured.paragraphs.flatMap((paragraph) => {
+      const textPromises = measured.paragraphs.flatMap((paragraph) => {
         if (!paragraph.fragments.flatMap(f => f.characters.map(c => c.content)).join('')) {
           return []
         }
         const { computedStyle: pStyle } = paragraph
         return paragraph.fragments
-          .map((f) => {
+          .map(async (f) => {
             const { computedStyle: rStyle } = f
 
             const fill = isNone((rStyle as any).fill)
               ? isNone(rStyle.color)
                 ? undefined
                 : rStyle.color
-              : this._parseFill((rStyle as any).fill, {
+              : await this._parseFill((rStyle as any).fill, {
                   defs,
-                  prefix: `${uuid}-text`,
+                  prefix: `${uuid}_text`,
                   fillMap,
                   width,
                   height,
                   rotate,
                 })
 
-            if (f.characters[0].glyphBox) {
+            if (this.config.embedText && f.characters[0].glyphBox) {
               return {
                 tag: 'path',
                 attrs: {
@@ -724,54 +717,111 @@ export class SvgRenderer {
           })
       })
 
+      const textNodes = await Promise.all(textPromises)
+
       if (textNodes.length) {
-        container.children!.push({
-          tag: 'g',
-          attrs: {
-            'data-name': 'text',
-            'style': { 'transform-box': 'fill-box' },
-            'transform-origin': 'center',
-            'transform': rotate !== 0 ? `rotate(${rotate})` : undefined,
-          },
-          children: textNodes,
-        })
+        if (rotate !== 0) {
+          containerChildren.push({
+            tag: 'g',
+            attrs: {
+              transform: `rotate(${rotate} ${width / 2} ${height / 2})`,
+            },
+            children: textNodes,
+          })
+        }
+        else {
+          containerChildren.push(
+            ...textNodes,
+          )
+        }
       }
     }
 
     if (children) {
-      shapeContainer.children!.push(
-        ...children.map((child) => {
-          return this.elementToXmlNode(child as any, {
-            ...ctx,
-            parent: element as any,
-          })
-        }),
+      shapeChildren.push(
+        ...(
+          await Promise.all(
+            children.map((child) => {
+              return this.elementToXmlNodes(child as any, {
+                ...ctx,
+                parent: element as any,
+              })
+            }),
+          )
+        ).flat(),
       )
     }
 
-    return container
+    if (shapeChildren.length) {
+      const shapeTransform: string[] = []
+      if (scaleX !== 1 || scaleY !== 1 || rotate !== 0) {
+        if (rotate !== 0) {
+          shapeTransform.push(`rotate(${rotate} ${width / 2} ${height / 2})`)
+        }
+        shapeTransform.push(`scale(${scaleX}, ${scaleY})`)
+      }
+      if (shapeTransform.length || visibility) {
+        containerChildren.push({
+          tag: 'g',
+          attrs: { transform: shapeTransform.join(' '), visibility },
+          children: shapeChildren,
+        })
+      }
+      else {
+        containerChildren.push(...shapeChildren)
+      }
+    }
+
+    const transform: string[] = []
+    if (left !== 0 || top !== 0) {
+      transform.push(`translate(${left}, ${top})`)
+    }
+    if (transform.length || visibility) {
+      return [
+        {
+          tag: 'g',
+          attrs: { transform: transform.join(' '), visibility },
+          children: containerChildren,
+        },
+      ]
+    }
+
+    return containerChildren
   }
 
-  docToXmlNode(doc: NormalizedDocument): XmlNode {
+  async docToXmlNode(doc: NormalizedDocument): Promise<XmlNode> {
     const { style = {}, children = [] } = doc
     const width = Number(style.width ?? children[0]?.style?.width ?? 0)
     const height = Number(style.height ?? children[0]?.style?.height ?? 0)
     const viewBoxHeight = height * children.length
 
+    const ctx = {
+      defs: {
+        tag: 'defs' as const,
+        children: [] as XmlNode[],
+      },
+    }
+
     return {
       tag: 'svg',
       attrs: {
-        'xmlns': 'http://www.w3.org/2000/svg',
-        'xmlns:xlink': 'http://www.w3.org/1999/xlink',
         width,
         'height': viewBoxHeight,
         'viewBox': `0 0 ${width} ${viewBoxHeight}`,
+        'fill': 'none',
+        'xmlns': 'http://www.w3.org/2000/svg',
+        'xmlns:xlink': 'http://www.w3.org/1999/xlink',
       },
-      children: children.flatMap((element) => {
-        return [
-          this.elementToXmlNode(element),
-        ].filter(Boolean) as XmlNode[]
-      }),
+      children: [
+        ...(
+          await Promise.all(
+            children.map((element) => {
+              return this.elementToXmlNodes(element, ctx)
+            }),
+          )
+        ).flat(),
+        ctx.defs,
+      ],
     }
   }
 
@@ -827,10 +877,10 @@ export class SvgRenderer {
     return viewBox
   }
 
-  elementToString(
+  async elementToString(
     element: NormalizedElement,
     ctx: ParseElementContext = {},
-  ): string {
+  ): Promise<string> {
     const viewBox = this.parseElementViewBox(element)
 
     ctx.onViewBox?.(viewBox)
@@ -843,29 +893,30 @@ export class SvgRenderer {
         'width': viewBox.x2 - viewBox.x1,
         'height': viewBox.y2 - viewBox.y1,
         'viewBox': `${viewBox.x1} ${viewBox.y1} ${viewBox.x2} ${viewBox.y2}`,
-        'preserveAspectRatio': 'none',
       },
       children: [
-        this.elementToXmlNode({
-          ...element,
-          style: {
-            ...element.style,
-            left: 0,
-            top: 0,
-          },
-        }, ctx),
+        ...(
+          await this.elementToXmlNodes({
+            ...element,
+            style: {
+              ...element.style,
+              left: 0,
+              top: 0,
+            },
+          }, ctx)
+        ),
       ],
     })
   }
 
-  toString(): string {
+  async toString(): Promise<string> {
     return this.xmlRenderer.render(
-      this.docToXmlNode(this.doc),
+      await this.docToXmlNode(this.doc),
     )
   }
 
-  toDom(): SVGSVGElement {
-    const xml = this.toString()
+  async toDom(): Promise<SVGSVGElement> {
+    const xml = await this.toString()
     const doc = new DOMParser().parseFromString(xml, 'application/xml') as XMLDocument
     const error = doc.querySelector('parsererror')
     if (error) {
@@ -874,7 +925,7 @@ export class SvgRenderer {
     return doc.documentElement as any
   }
 
-  toBlob(): Blob {
-    return new Blob([this.toString()], { type: 'image/svg+xml' })
+  async toBlob(): Promise<Blob> {
+    return new Blob([await this.toString()], { type: 'image/svg+xml' })
   }
 }
