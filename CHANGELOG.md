@@ -1,3 +1,12 @@
+# [0.2.0](https://github.com/qq15725/modern-idoc-svg/compare/v0.1.0...v0.2.0) (2025-11-04)
+
+
+### Features
+
+* update SvgRenderer ([833be24](https://github.com/qq15725/modern-idoc-svg/commit/833be247575f90703d5557a29e0c4298f22a4838))
+
+
+
 # [0.1.0](https://github.com/qq15725/modern-idoc-svg/compare/v0.0.6...v0.1.0) (2025-11-03)
 
 
