@@ -1,4 +1,5 @@
 import type {
+  ConnectionMode,
   Document,
   LineEndSize,
   NormalizedDocument,
@@ -6,6 +7,7 @@ import type {
   NormalizedFill,
   NormalizedGradientFill,
   NormalizedImageFill,
+  NormalizedTable,
 } from 'modern-idoc'
 import type { XmlNode } from '../renderers'
 import {
@@ -126,6 +128,42 @@ export class SvgRenderer {
     }
   }
 
+  async toDataUrl(url: string): Promise<string> {
+    return fetch(url).then(async (rep) => {
+      const blob = await rep.blob()
+      const mime = blob.type || 'image/png'
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8 = new Uint8Array(arrayBuffer)
+      let binary = ''
+      for (let i = 0; i < uint8.length; i++) {
+        binary += String.fromCharCode(uint8[i])
+      }
+      const base64 = btoa(binary)
+      return `data:${mime};base64,${base64}`
+    })
+  }
+
+  // Fallback for content this renderer cannot vectorize (e.g. charts): render a
+  // pre-rasterized bitmap supplied by an upstream renderer. See `raster` below.
+  async parseRasterImage(
+    src: string,
+    ctx: {
+      width: number
+      height: number
+    },
+  ): Promise<XmlNode> {
+    const href = this.config.embedImage ? await this.toDataUrl(src) : src
+    return {
+      tag: 'image',
+      attrs: {
+        href,
+        width: ctx.width,
+        height: ctx.height,
+        preserveAspectRatio: 'none',
+      },
+    }
+  }
+
   async parseImageFill(
     fill: NormalizedImageFill,
     ctx: {
@@ -186,25 +224,7 @@ export class SvgRenderer {
       ].join(' ')
     }
 
-    let href
-    if (this.config.embedImage) {
-      href = await fetch(image)
-        .then(async (rep) => {
-          const blob = await rep.blob()
-          const mime = blob.type || 'image/png'
-          const arrayBuffer = await blob.arrayBuffer()
-          const uint8 = new Uint8Array(arrayBuffer)
-          let binary = ''
-          for (let i = 0; i < uint8.length; i++) {
-            binary += String.fromCharCode(uint8[i])
-          }
-          const base64 = btoa(binary)
-          return `data:${mime};base64,${base64}`
-        })
-    }
-    else {
-      href = image
-    }
+    const href = this.config.embedImage ? await this.toDataUrl(image) : image
 
     defs.children?.push({
       tag: 'pattern',
@@ -383,6 +403,101 @@ export class SvgRenderer {
     return marker
   }
 
+  async parseTable(
+    table: NormalizedTable,
+    ctx: {
+      width: number
+      height: number
+      defs: XmlNode
+      uuid: string
+      fillMap: Map<string, string>
+      element: NormalizedElement
+      elementCtx: ParseElementContext
+    },
+  ): Promise<XmlNode[]> {
+    const { width, height, defs, uuid, fillMap, element, elementCtx } = ctx
+    const { columns, rows, cells } = table
+
+    const colCount = columns.length || 1
+    const rowCount = rows.length || 1
+    const colWidths = columns.length
+      ? columns.map(c => c.width ?? width / colCount)
+      : Array.from<number>({ length: colCount }).fill(width / colCount)
+    const rowHeights = rows.length
+      ? rows.map(r => r.height ?? height / rowCount)
+      : Array.from<number>({ length: rowCount }).fill(height / rowCount)
+
+    const colX = [0]
+    colWidths.forEach((w, i) => {
+      colX[i + 1] = colX[i] + w
+    })
+    const rowY = [0]
+    rowHeights.forEach((h, i) => {
+      rowY[i + 1] = rowY[i] + h
+    })
+
+    return Promise.all(cells.map(async (cell, idx) => {
+      const { row, col, rowSpan = 1, colSpan = 1, children, background, style } = cell
+      const x = colX[col] ?? 0
+      const y = rowY[row] ?? 0
+      const cw = (colX[Math.min(col + colSpan, colWidths.length)] ?? x) - x
+      const ch = (rowY[Math.min(row + rowSpan, rowHeights.length)] ?? y) - y
+
+      const cellChildren: XmlNode[] = []
+
+      if (background) {
+        cellChildren.push(...(
+          await this.parseFill(background, {
+            key: `cell${idx}_bg`,
+            width: cw,
+            height: ch,
+            defs,
+            uuid,
+            fillMap,
+          })
+        ))
+      }
+
+      const borderColor = (style as Record<string, any> | undefined)?.borderColor
+      cellChildren.push({
+        tag: 'rect',
+        attrs: {
+          'width': cw,
+          'height': ch,
+          'fill': 'none',
+          'stroke': borderColor && !isNone(borderColor) ? borderColor : '#d9d9d9',
+          'stroke-width': 1,
+        },
+      })
+
+      if (children?.length) {
+        cellChildren.push(...(
+          await Promise.all(
+            children.map(child => this.elementToXmlNodes(child, { ...elementCtx, parent: element })),
+          )
+        ).flat())
+      }
+
+      return {
+        tag: 'g',
+        attrs: { transform: `translate(${x}, ${y})` },
+        children: cellChildren,
+      }
+    }))
+  }
+
+  parseConnectionPath(mode: ConnectionMode, width: number, height: number): string {
+    switch (mode) {
+      case 'orthogonal':
+        return `M 0 0 H ${width / 2} V ${height} H ${width}`
+      case 'curved':
+        return `M 0 0 C ${width / 2} 0 ${width / 2} ${height} ${width} ${height}`
+      case 'straight':
+      default:
+        return `M 0 0 L ${width} ${height}`
+    }
+  }
+
   async elementToXmlNodes(
     element: NormalizedElement,
     ctx: ParseElementContext = {},
@@ -397,25 +512,29 @@ export class SvgRenderer {
       // video,
       fill,
       outline,
-      effect = {},
+      shadow,
       text,
+      connection,
+      table,
+      chart,
       // meta,
       children,
     } = element
 
     const {
-      softEdge,
-      outerShadow,
-    } = effect
-
-    const {
       scaleX = 1,
       scaleY = 1,
+      skewX = 0,
+      skewY = 0,
       left = 0,
       top = 0,
+      translateX = 0,
+      translateY = 0,
       width = 0,
       height = 0,
       rotate = 0,
+      transform: styleTransform,
+      opacity,
       visibility,
       // backgroundColor,
     } = style as Record<string, any>
@@ -438,17 +557,36 @@ export class SvgRenderer {
               'd': path.data,
               'fill': path.fill,
               'fill-rule': path.fillRule,
+              'fill-opacity': path.fillOpacity,
               'stroke': path.stroke,
               'stroke-width': path.strokeWidth,
+              'stroke-opacity': path.strokeOpacity,
+              'stroke-linecap': path.strokeLinecap,
+              'stroke-linejoin': path.strokeLinejoin,
+              'stroke-miterlimit': path.strokeMiterlimit,
+              'stroke-dasharray': path.strokeDasharray?.join(' '),
+              'stroke-dashoffset': path.strokeDashoffset,
+              'opacity': path.opacity,
             },
           }
         })
-      : [
-          {
-            tag: 'rect',
-            attrs: { id: `${uuid}_shape_${0}`, width, height },
-          },
-        ]
+      : connection
+        ? [
+            {
+              tag: 'path',
+              attrs: {
+                id: `${uuid}_shape_0`,
+                d: this.parseConnectionPath(connection.mode, width, height),
+                fill: 'none',
+              },
+            },
+          ]
+        : [
+            {
+              tag: 'rect',
+              attrs: { id: `${uuid}_shape_${0}`, width, height },
+            },
+          ]
     defs.children.push(...shapePaths)
 
     const shapeAttrs: Record<string, any> = {
@@ -493,21 +631,6 @@ export class SvgRenderer {
       }
     }
 
-    if (softEdge) {
-      defs.children.push({
-        tag: 'filter',
-        attrs: { id: `${uuid}_soft_edge` },
-        children: [
-          {
-            tag: 'feGaussianBlur',
-            attrs: { in: 'SourceGraphic', stdDeviation: softEdge.radius / 3 },
-          },
-        ],
-      })
-      shapeAttrs.filter = `url(#${uuid}_soft_edge)`
-      shapeAttrs.transform = `matrix(0.8,0,0,0.8,${width * 0.1},${height * 0.1})`
-    }
-
     if (background) {
       shapeChildren.push(...(
         await this.parseFill(background, {
@@ -539,15 +662,13 @@ export class SvgRenderer {
       }
     })
 
-    if (outerShadow) {
+    if (shadow?.enabled) {
       const {
         color,
         offsetX = 0,
         offsetY = 0,
-        scaleX = 1,
-        scaleY = 1,
-        blurRadius = 0,
-      } = outerShadow
+        blur: blurRadius = 0,
+      } = shadow
       const { r, g, b, a } = parseColor(color).toRgb()
       const filter = {
         x1: 0 - blurRadius,
@@ -555,7 +676,6 @@ export class SvgRenderer {
         x2: width + blurRadius * 2,
         y2: height + blurRadius * 2,
       }
-      const matrix = { a: scaleX, b: 0, c: 0, d: scaleY, e: offsetX, f: (height - (height * scaleY)) + offsetY }
 
       defs.children.push({
         tag: 'filter',
@@ -589,7 +709,7 @@ export class SvgRenderer {
         tag: 'g',
         attrs: {
           filter: `url(#${uuid}_outerShadow)`,
-          transform: `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e},${matrix.f})`,
+          transform: `translate(${offsetX},${offsetY})`,
         },
         children: shapeNodes,
       })
@@ -610,6 +730,56 @@ export class SvgRenderer {
           rotate,
         })
       ))
+    }
+
+    if (table?.enabled) {
+      shapeChildren.push(...(
+        await this.parseTable(table, {
+          width,
+          height,
+          defs,
+          uuid,
+          fillMap,
+          element,
+          elementCtx: ctx,
+        })
+      ))
+    }
+
+    // Charts are not vectorized here. If an upstream renderer rasterized the
+    // element, render that bitmap; otherwise draw a placeholder. See `raster`.
+    if (chart?.enabled) {
+      const raster = (element as Record<string, any>).raster
+      if (raster) {
+        shapeChildren.push(await this.parseRasterImage(raster, { width, height }))
+      }
+      else {
+        shapeChildren.push({
+          tag: 'rect',
+          attrs: {
+            'width': width,
+            'height': height,
+            'fill': 'none',
+            'stroke': '#bfbfbf',
+            'stroke-width': 1,
+            'stroke-dasharray': '4 4',
+          },
+        })
+        if (chart.title) {
+          shapeChildren.push({
+            tag: 'text',
+            attrs: {
+              'x': width / 2,
+              'y': height / 2,
+              'fill': '#8c8c8c',
+              'font-size': 14,
+              'text-anchor': 'middle',
+              'dominant-baseline': 'middle',
+            },
+            children: [chart.title],
+          })
+        }
+      }
     }
 
     if (!ctx.defs && defs.children.length) {
@@ -754,11 +924,20 @@ export class SvgRenderer {
 
     if (shapeChildren.length) {
       const shapeTransform: string[] = []
-      if (scaleX !== 1 || scaleY !== 1 || rotate !== 0) {
-        if (rotate !== 0) {
-          shapeTransform.push(`rotate(${rotate} ${width / 2} ${height / 2})`)
-        }
+      if (rotate !== 0) {
+        shapeTransform.push(`rotate(${rotate} ${width / 2} ${height / 2})`)
+      }
+      if (scaleX !== 1 || scaleY !== 1) {
         shapeTransform.push(`scale(${scaleX}, ${scaleY})`)
+      }
+      if (skewX !== 0) {
+        shapeTransform.push(`skewX(${skewX})`)
+      }
+      if (skewY !== 0) {
+        shapeTransform.push(`skewY(${skewY})`)
+      }
+      if (styleTransform && styleTransform !== 'none') {
+        shapeTransform.push(styleTransform)
       }
       if (shapeTransform.length || visibility) {
         containerChildren.push({
@@ -773,14 +952,16 @@ export class SvgRenderer {
     }
 
     const transform: string[] = []
-    if (left !== 0 || top !== 0) {
-      transform.push(`translate(${left}, ${top})`)
+    const tx = left + translateX
+    const ty = top + translateY
+    if (tx !== 0 || ty !== 0) {
+      transform.push(`translate(${tx}, ${ty})`)
     }
-    if (transform.length || visibility) {
+    if (transform.length || visibility || opacity !== undefined) {
       return [
         {
           tag: 'g',
-          attrs: { transform: transform.join(' '), visibility },
+          attrs: { transform: transform.join(' '), visibility, opacity },
           children: containerChildren,
         },
       ]
@@ -857,14 +1038,12 @@ export class SvgRenderer {
       }
     }
 
-    if (element.effect?.outerShadow) {
-      const { offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1, blurRadius = 0 } = element.effect.outerShadow
-      const filter = { x1: viewBox.x1 - blurRadius, y1: viewBox.y1 - blurRadius }
-      const matrix = { e: offsetX, f: (height - (height * scaleY)) + offsetY }
-      const x1 = filter.x1 * scaleX + matrix.e
-      const y1 = filter.y1 * scaleY + matrix.f
-      const x2 = (viewBox.x2 + blurRadius) * scaleX + matrix.e
-      const y2 = (viewBox.y2 + blurRadius) * scaleY + matrix.f
+    if (element.shadow?.enabled) {
+      const { offsetX = 0, offsetY = 0, blur: blurRadius = 0 } = element.shadow
+      const x1 = (viewBox.x1 - blurRadius) + offsetX
+      const y1 = (viewBox.y1 - blurRadius) + offsetY
+      const x2 = (viewBox.x2 + blurRadius) + offsetX
+      const y2 = (viewBox.y2 + blurRadius) + offsetY
       const oldViewBox = { ...viewBox }
       viewBox.x1 = Math.min(oldViewBox.x1, x1)
       viewBox.y1 = Math.min(oldViewBox.y1, y1)
