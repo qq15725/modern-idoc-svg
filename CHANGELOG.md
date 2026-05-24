@@ -1,3 +1,7 @@
+## [0.3.2](https://github.com/qq15725/modern-idoc-svg/compare/v0.3.1...v0.3.2) (2026-05-24)
+
+
+
 ## [0.3.1](https://github.com/qq15725/modern-idoc-svg/compare/v0.3.0...v0.3.1) (2026-05-24)
 
 
