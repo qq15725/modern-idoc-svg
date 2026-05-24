@@ -1,3 +1,12 @@
+# [0.3.0](https://github.com/qq15725/modern-idoc-svg/compare/v0.2.0...v0.3.0) (2026-05-24)
+
+
+### Features
+
+* support connection/table/chart, upgrade deps ([511baae](https://github.com/qq15725/modern-idoc-svg/commit/511baaed78053411f365aae14e14f10c7a43c71b))
+
+
+
 # [0.2.0](https://github.com/qq15725/modern-idoc-svg/compare/v0.1.0...v0.2.0) (2025-11-04)
 
 
