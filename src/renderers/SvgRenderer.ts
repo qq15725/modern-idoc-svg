@@ -15,6 +15,7 @@ import {
   isNone,
   normalizeDocument,
   parseColor,
+  stringifyFilter,
 } from 'modern-idoc'
 import { measureText } from 'modern-text'
 import { XmlRenderer } from '../renderers'
@@ -517,6 +518,7 @@ export class SvgRenderer {
       connection,
       table,
       chart,
+      filter,
       // meta,
       children,
     } = element
@@ -957,8 +959,9 @@ export class SvgRenderer {
     if (tx !== 0 || ty !== 0) {
       transform.push(`translate(${tx}, ${ty})`)
     }
+    let nodes: XmlNode[]
     if (transform.length || visibility || opacity !== undefined) {
-      return [
+      nodes = [
         {
           tag: 'g',
           attrs: { transform: transform.join(' '), visibility, opacity },
@@ -966,8 +969,23 @@ export class SvgRenderer {
         },
       ]
     }
+    else {
+      nodes = containerChildren
+    }
 
-    return containerChildren
+    // 元素级结构化滤镜 Effect.filter → CSS filter，外层 <g> 包裹（避免与 shadow 的 filter 属性冲突）
+    const cssFilter = filter ? stringifyFilter(filter) : ''
+    if (cssFilter) {
+      nodes = [
+        {
+          tag: 'g',
+          attrs: { style: `filter: ${cssFilter}` },
+          children: nodes,
+        },
+      ]
+    }
+
+    return nodes
   }
 
   async docToXmlNode(doc: NormalizedDocument): Promise<XmlNode> {
