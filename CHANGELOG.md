@@ -1,3 +1,12 @@
+## [0.3.4](https://github.com/qq15725/modern-idoc-svg/compare/v0.3.3...v0.3.4) (2026-06-05)
+
+
+### Features
+
+* render element-level Effect.filter as CSS filter ([08a898f](https://github.com/qq15725/modern-idoc-svg/commit/08a898f266721f8bc525995e64dda783bc9ab904))
+
+
+
 ## [0.3.3](https://github.com/qq15725/modern-idoc-svg/compare/v0.3.2...v0.3.3) (2026-05-24)
 
 
