@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       modern-idoc:
-        specifier: ^0.11.9
-        version: 0.11.9
+        specifier: ^0.12.1
+        version: 0.12.1
       modern-text:
-        specifier: ^2.0.3
-        version: 2.0.3
+        specifier: ^2.0.9
+        version: 2.0.9
     devDependencies:
       '@antfu/eslint-config':
         specifier: ^9.0.0
@@ -2066,14 +2066,14 @@ packages:
   modern-font@0.6.0:
     resolution: {integrity: sha512-+ONkM2v9nzULXa0GYFoLzlifjkrTDDABiboku68RbvuEm7jsMhd0hYOFFdiayCe64bcIfdi3TRe7xgTHPof1Tg==}
 
-  modern-idoc@0.11.9:
-    resolution: {integrity: sha512-MM/FUzhcCs8kjWE7blFM8vh1rQc5kkpfvbk3X34oIJGz7coz6CObbet4I9GxvFHChTaLdDviiHlT62UhFwHQBQ==}
+  modern-idoc@0.12.1:
+    resolution: {integrity: sha512-+QsDJnhvyogjGY4g26tePlsHkpARZF1J+M5ItfnLfKgwVM+zItR7QEXFn554/2UPkYXbkjOPiDH1XL/m2hie7w==}
 
   modern-path2d@1.7.0:
     resolution: {integrity: sha512-9BIk0manYEmJRMknVdhumn4Sn7JCR7b2oC4Oc5geAfPFMEaySFXiPbhCrBLLkJ65Ty4WWzwOnvSzslBGeBNeLQ==}
 
-  modern-text@2.0.3:
-    resolution: {integrity: sha512-B13Klwhpo3YZHNLeOrb4MQ2n+SNALLmf/GDxxB2nOYC6IBZrznNNHTXbh14/Gazgwbmx0PRs431I5Y+nxGf8bg==}
+  modern-text@2.0.9:
+    resolution: {integrity: sha512-T/6iGksR7BQ96oTDqfwn8+pREsOlc5HemtEgYSAqLBSLU8dXH/mBTHQLFNbgX+n66Ojg1nyZiF8QH/UXDkojRQ==}
 
   module-replacements@3.0.0-beta.7:
     resolution: {integrity: sha512-n1F9l3gF1wNh13xmnXS2JU7P9c3DlzCgVEyLKrVN0U37RwrXyYoePMMvYvs/6aUONAxbnscphzESZTCorXFh7Q==}
@@ -4998,7 +4998,7 @@ snapshots:
     dependencies:
       fflate: 0.8.3
 
-  modern-idoc@0.11.9:
+  modern-idoc@0.12.1:
     dependencies:
       colord: 2.9.3
       nanoid: 5.1.11
@@ -5007,11 +5007,11 @@ snapshots:
     dependencies:
       earcut: 3.0.2
 
-  modern-text@2.0.3:
+  modern-text@2.0.9:
     dependencies:
       diff: 9.0.0
       modern-font: 0.6.0
-      modern-idoc: 0.11.9
+      modern-idoc: 0.12.1
       modern-path2d: 1.7.0
 
   module-replacements@3.0.0-beta.7: {}

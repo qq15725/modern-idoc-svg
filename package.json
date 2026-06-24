@@ -1,7 +1,7 @@
 {
   "name": "modern-idoc-svg",
   "type": "module",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "packageManager": "pnpm@10.19.0",
   "description": "IDoc to SVG renderer",
   "author": "wxm",
@@ -54,8 +54,8 @@
     "prepare": "simple-git-hooks"
   },
   "dependencies": {
-    "modern-idoc": "^0.11.9",
-    "modern-text": "^2.0.3"
+    "modern-idoc": "^0.12.1",
+    "modern-text": "^2.0.9"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^9.0.0",
