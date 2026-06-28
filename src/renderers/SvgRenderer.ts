@@ -1,6 +1,7 @@
 import type {
   ConnectionMode,
   Document,
+  ImagePipeline,
   LineEndSize,
   NormalizedDocument,
   NormalizedElement,
@@ -8,6 +9,7 @@ import type {
   NormalizedGradientFill,
   NormalizedImageFill,
   NormalizedTable,
+  PipelineImage,
 } from 'modern-idoc'
 import type { XmlNode } from '../renderers'
 import {
@@ -36,9 +38,21 @@ export interface ParseElementContext {
   }
 }
 
+/**
+ * 图片处理管线解析器：给定管线步骤与解码后的图片像素，返回处理后的像素。
+ * 由宿主注入（管线的处理函数为运行时黑盒，本库不持有）。宿主可把同一个 resolver
+ * 同时注入到渲染端与各导出端，统一管线处理。返回 undefined 表示放弃处理、沿用原图。
+ */
+export type ImagePipelineResolver = (
+  imagePipelines: ImagePipeline[],
+  image: PipelineImage,
+) => Promise<PipelineImage | undefined>
+
 export interface SvgRendererOptions {
   embedImage?: boolean
   embedText?: boolean
+  /** 图片处理管线解析器（像素级）；带 imagePipelines 的图片经它烘焙后嵌入。 */
+  imagePipelineResolver?: ImagePipelineResolver
 }
 
 export class SvgRenderer {
@@ -50,7 +64,8 @@ export class SvgRenderer {
   xmlRenderer = new XmlRenderer()
 
   doc: NormalizedDocument
-  config: Required<SvgRendererOptions>
+  config: Required<Pick<SvgRendererOptions, 'embedImage' | 'embedText'>>
+  protected _imagePipelineResolver?: ImagePipelineResolver
 
   constructor(
     doc: Document,
@@ -58,9 +73,40 @@ export class SvgRenderer {
   ) {
     this.doc = normalizeDocument(doc)
     this.config = {
-      ...SvgRenderer.defaultOptions,
-      ...options,
+      embedImage: options.embedImage ?? SvgRenderer.defaultOptions.embedImage,
+      embedText: options.embedText ?? SvgRenderer.defaultOptions.embedText,
     }
+    this._imagePipelineResolver = options.imagePipelineResolver
+  }
+
+  /** 解码图片地址为中立像素结构。 */
+  protected async _decodeImage(url: string): Promise<PipelineImage | undefined> {
+    const blob = await fetch(url).then(rep => rep.blob())
+    const bitmap = await createImageBitmap(blob)
+    const w = Math.max(1, bitmap.width)
+    const h = Math.max(1, bitmap.height)
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx)
+      return undefined
+    ctx.drawImage(bitmap, 0, 0)
+    bitmap.close?.()
+    const imageData = ctx.getImageData(0, 0, w, h)
+    return { data: imageData.data, width: w, height: h }
+  }
+
+  /** 把中立像素结构编码为 PNG dataURI。 */
+  protected _encodeDataUrl(image: PipelineImage): string {
+    const canvas = document.createElement('canvas')
+    canvas.width = image.width
+    canvas.height = image.height
+    const ctx = canvas.getContext('2d')!
+    const imageData = ctx.createImageData(image.width, image.height)
+    imageData.data.set(image.data)
+    ctx.putImageData(imageData, 0, 0)
+    return canvas.toDataURL('image/png')
   }
 
   parseGradientFill(
@@ -225,7 +271,16 @@ export class SvgRenderer {
       ].join(' ')
     }
 
-    const href = this.config.embedImage ? await this.toDataUrl(image) : image
+    // 带图片处理管线时：解码原图为像素 → 经注入的解析器烘焙 → 编码为 dataURI 作 href。
+    let href: string | undefined
+    if (fill.imagePipelines?.length && this._imagePipelineResolver) {
+      const decoded = await this._decodeImage(image)
+      const out = decoded ? await this._imagePipelineResolver(fill.imagePipelines, decoded) : undefined
+      href = out ? this._encodeDataUrl(out) : undefined
+    }
+    if (href === undefined) {
+      href = this.config.embedImage ? await this.toDataUrl(image) : image
+    }
 
     defs.children?.push({
       tag: 'pattern',

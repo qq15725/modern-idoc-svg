@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       modern-idoc:
-        specifier: ^0.12.1
-        version: 0.12.1
+        specifier: ^0.12.3
+        version: 0.12.3
       modern-text:
         specifier: ^2.0.9
         version: 2.0.9
@@ -2066,8 +2066,8 @@ packages:
   modern-font@0.6.0:
     resolution: {integrity: sha512-+ONkM2v9nzULXa0GYFoLzlifjkrTDDABiboku68RbvuEm7jsMhd0hYOFFdiayCe64bcIfdi3TRe7xgTHPof1Tg==}
 
-  modern-idoc@0.12.1:
-    resolution: {integrity: sha512-+QsDJnhvyogjGY4g26tePlsHkpARZF1J+M5ItfnLfKgwVM+zItR7QEXFn554/2UPkYXbkjOPiDH1XL/m2hie7w==}
+  modern-idoc@0.12.3:
+    resolution: {integrity: sha512-5DRaW+/zgC1w8r37mrOEQ1lOVTDIGMBSgMQA2KCcrdjLOp4RsxG2yfl61VrXB8s7BPU0dzg2aEEfiUNZLM/NJw==}
 
   modern-path2d@1.7.0:
     resolution: {integrity: sha512-9BIk0manYEmJRMknVdhumn4Sn7JCR7b2oC4Oc5geAfPFMEaySFXiPbhCrBLLkJ65Ty4WWzwOnvSzslBGeBNeLQ==}
@@ -4998,7 +4998,7 @@ snapshots:
     dependencies:
       fflate: 0.8.3
 
-  modern-idoc@0.12.1:
+  modern-idoc@0.12.3:
     dependencies:
       colord: 2.9.3
       nanoid: 5.1.11
@@ -5011,7 +5011,7 @@ snapshots:
     dependencies:
       diff: 9.0.0
       modern-font: 0.6.0
-      modern-idoc: 0.12.1
+      modern-idoc: 0.12.3
       modern-path2d: 1.7.0
 
   module-replacements@3.0.0-beta.7: {}
